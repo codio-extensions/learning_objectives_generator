@@ -134,15 +134,12 @@ Ensure that your learning objective is directly related to the provided content 
     let learning_objective
     try {
       learning_objective = await window.codioIDE.guides.structure.add({
-          title: 'Learning Objective', 
+          title: 'Learning Objectives', 
           type: window.codioIDE.guides.structure.ITEM_TYPES.PAGE,
           content: `${generatedContent}`,
-          layout: "L_1_PANEL",
+          layout: window.codioIDE.guides.structure.LAYOUT.L_1_PANEL,
           closeAllTabs: true,
           showFileTree: false
-
-        
-          
       })
       console.log('Learning Objective added ->', learning_objective) 
     } catch (e) {
@@ -150,18 +147,8 @@ Ensure that your learning objective is directly related to the provided content 
     }
 
     codioIDE.coachBot.write(`Learning Objecives page generated successfully!`)
-
-
     codioIDE.coachBot.showMenu()
-
-
-        
-
-
-   
     
   }
 // calling the function immediately by passing the required variables
 })(window.codioIDE, window)
-
- 
