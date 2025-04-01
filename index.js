@@ -3,8 +3,33 @@
 (async function(codioIDE, window) {
   
   // Refer to Anthropic's guide on system prompts here: https://docs.anthropic.com/claude/docs/system-prompts
-  const systemPrompt = `You are a helpful teaching assistant. Your task is to generate learning objectives for an assignment in a specified format.
-  Note: Only respond with the learning objectives.`
+  const systemPrompt = `
+  You are a helpful teaching assistant. 
+  Your task is to generate learning objectives for an assignment using the following template:
+
+  <template>
+    ### Learners will be able to...
+
+    * ### Learning objectives
+    * ### Go here
+    * ### Should read like test question
+
+    |||guidance
+    ## Assumptions
+    [What do we expect the students to already know]
+
+    ## Limitations
+    [What might not be covered, or design decisions made by Codio, ending with a new line character]
+
+    |||
+
+    </template>
+    Note:
+    - Make sure to use the format as a template for the learning objectives you generate.
+    - Make sure there is a new line before the last ||| of the guidance tag.
+    - Make sure all the bullet points start with a ### for bold markdown formatting as per the template provided.
+    - Do not stray away from the template and respond with the learning objectives page inside the <learning_objectives> tag. 
+    `
   
   // register(id: unique button id, name: name of button visible in Coach, function: function to call when button is clicked) 
   codioIDE.coachBot.register("generateLearningObjectivesButton", "Please generate the Learning Objectives", onButtonPress)
@@ -38,14 +63,25 @@
     // iterate through page ids of pages and fetch all page data
     for ( const element_index in assignmentPages) {
       
-      // console.log("element", element)
-      let page_id = assignmentPages[element_index].id
-      // console.log("page id", page_id)
-      let pageData = await codioIDE.guides.structure.get(page_id)
-      // console.log("pageData", pageData)
-      guidePages[element_index] = {"title": assignmentPages[element_index].title, "id": page_id, "content": pageData.settings.content};
-    }
+        let pageTitle = assignmentPages[element_index].title
 
+        const excludedKeywords = [
+        "learning objectives", "learning_objectives", "LearningObjectives", "Learning_Objectives", "learning-objectives",
+        "Learning-Objectives", "LearningObjectives---", "Objectives_Learning", "Objectives-Learning", "learningobjectives",
+        "LO_", "LO-", "Learning_Obj", "LearningObj", "Objectives", "LOs"
+        ]
+
+        if (excludedKeywords.some(keyword => pageTitle.includes(keyword))) {
+            continue
+        }
+        // console.log("element", element)
+        let page_id = assignmentPages[element_index].id
+        // console.log("page id", page_id)
+        let pageData = await codioIDE.guides.structure.get(page_id)
+        // console.log("pageData", pageData)
+        guidePages[element_index] = {"title": pageTitle, "id": page_id, "content": pageData.settings.content};
+    }
+   
     console.log("guide pages", guidePages)
 
     // Concatenate all pages for LLM context
@@ -56,40 +92,22 @@
     console.log(concatenatedPages);
     
     const userPrompt = `
-    Here is the assignment content. Read it carefully:
+    Here is the assignment content. Read it carefully and generate the learning objectives page:
     
     <assignment_content>
     {{CONTENT}}
     </assignment_content>
 
-    Here is the format to be followed when generating learning objectives:
-    <format>
-
-    ### Learners will be able to...
-
-    * ### Learning objectives
-    * ### Go here
-    * ### Should read like test question
-
-    |||Guidance
-    ## Assumptions
-    [What do we expect the students to already know]
-
-    ## Limitations
-    [What might not be covered, or design decisions made by Codio]
-    |||
-
-    </format>
     Note:
-    - Use the format as a template for the learning objectives you generate.
     - Keep the bullet points to 1-5 learning objectives that cover all the pages in the assignment content.
-    - Only respond with the learning objectives in the specified format.`
+    - Make sure all the bullet points start with a ### for markdown formatting as per the template provided.
+    `
 
     codioIDE.coachBot.write(`Generating Learning Objectives ... please wait...`)
     var updatedUserPrompt = userPrompt.replace('{{CONTENT}}', concatenatedPages)
 
 
-    async function fetchLLMResponseXMLTagContents(userPrompt) {
+    async function fetchLLMResponseXMLTagContents(userPrompt, xml_tag) {
 
         // Send the API request to the LLM with page content
         const result = await codioIDE.coachBot.ask(
@@ -98,22 +116,22 @@
                 messages: [{
                     "role": "user", 
                     "content": userPrompt
-                }
+                }]
             }, {stream:false, preventMenu: true}
         )
-        // console.log("response", result.result)
+        console.log("response", result.result)
 
-        // // const startIndex = result.result.indexOf(`<${xml_tag}>`) + `<${xml_tag}>`.length
-        // const endIndex = result.result.lastIndexOf(`</${xml_tag}>`);
+        const startIndex = result.result.indexOf(`<${xml_tag}>`) + `<${xml_tag}>`.length
+        const endIndex = result.result.lastIndexOf(`</${xml_tag}>`);
 
         // // console.log("start index", startIndex)
         // // console.log("endIndex", endIndex)
 
-        // return result.result.substring(0, endIndex);
-        return result.result
+        return result.result.substring(startIndex, endIndex);
+        // return result.result
     }
         
-    const generatedContent = await fetchLLMResponseXMLTagContents(updatedUserPrompt)
+    const generatedContent = await fetchLLMResponseXMLTagContents(updatedUserPrompt, "learning_objectives")
     console.log("Generated Learning Objective result", generatedContent)
 
     let learning_objectives
